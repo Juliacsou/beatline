@@ -37,18 +37,23 @@ async function uploadMP3(c,file){
 }
 async function removeMP3(c,path){if(!path)return;const result=await fetch(`${apiBase(c)}/storage/v1/object/beatline-music/${path.split('/').map(enc).join('/')}`,{method:'DELETE',headers:headers(c)});if(!result.ok)throw new Error(`Falha ao excluir MP3 do Storage (${result.status}).`);}
 async function saveTrack(c,{payload,file,ids,previous}){
-  let path=previous?.file_path||null,uploaded=null,saved=false;
+  let path=previous?.file_path||null,uploaded=null,saved=false,createdId=null;
   try{
     if(file){uploaded=await uploadMP3(c,file);path=uploaded;}
     const row={...payload,file_path:path};
     let id=previous?.id;
     if(previous){await request(c,`/rest/v1/beatline_tracks?id=eq.${enc(id)}`,{method:'PATCH',body:row,extraHeaders:{Prefer:'return=representation'}});}
-    else{const created=await request(c,'/rest/v1/beatline_tracks',{method:'POST',body:row,extraHeaders:{Prefer:'return=representation'}});id=created?.[0]?.id;if(!id)throw new Error('O Supabase não retornou o ID da música.');}
+    else{const created=await request(c,'/rest/v1/beatline_tracks',{method:'POST',body:row,extraHeaders:{Prefer:'return=representation'}});id=created?.[0]?.id;createdId=id;if(!id)throw new Error('O Supabase não retornou o ID da música.');}
     saved=true;
     await request(c,`/rest/v1/beatline_track_categories?track_id=eq.${enc(id)}`,{method:'DELETE'});
     await request(c,'/rest/v1/beatline_track_categories',{method:'POST',body:ids.map(category_id=>({track_id:id,category_id})),extraHeaders:{Prefer:'return=minimal'}});
     if(previous&&uploaded&&previous.file_path&&previous.file_path!==uploaded){await removeMP3(c,previous.file_path).catch(()=>{});}
-  }catch(e){if(uploaded&&!saved)await removeMP3(c,uploaded).catch(()=>{});throw e;}
+    return {id,file_path:path};
+  }catch(e){
+    if(createdId){await request(c,`/rest/v1/beatline_tracks?id=eq.${enc(createdId)}`,{method:'DELETE'}).catch(()=>{});}
+    if(uploaded&&(!saved||createdId))await removeMP3(c,uploaded).catch(()=>{});
+    throw e;
+  }
 }
 async function deleteTrack(c,track){if(!track)throw new Error('Música não encontrada.');await request(c,`/rest/v1/beatline_tracks?id=eq.${enc(track.id)}`,{method:'DELETE'});if(track.file_path)await removeMP3(c,track.file_path).catch(()=>{});}
 
