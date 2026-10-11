@@ -1,0 +1,71 @@
+name: BEATLINE - Gerar APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/beatline-android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages URL
+        shell: bash
+        env:
+          GAME_URL_OVERRIDE: ${{ vars.BEATLINE_GAME_URL }}
+        run: |
+          if [[ -n "$GAME_URL_OVERRIDE" ]]; then
+            GAME_URL="$GAME_URL_OVERRIDE"
+          else
+            OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+            REPO="${GITHUB_REPOSITORY#*/}"
+            if [[ "${REPO,,}" == "${OWNER}.github.io" ]]; then
+              GAME_URL="https://${OWNER}.github.io/"
+            else
+              GAME_URL="https://${OWNER}.github.io/${REPO}/"
+            fi
+          fi
+          if [[ "$GAME_URL" != https://* ]]; then
+            echo 'ERROR: URL must start with https://'
+            exit 1
+          fi
+          GAME_URL="${GAME_URL%/}/"
+          echo "GAME_URL=$GAME_URL" >> "$GITHUB_ENV"
+          echo "WebView game URL: $GAME_URL"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android platform
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Build installable APK
+        working-directory: android
+        run: gradle --no-daemon -PgameUrl="$GAME_URL" :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: beatline-android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Beatline" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/brand_yellow</item>
+        <item name="android:colorAccent">@color/brand_pink</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+</resources>

@@ -1,38 +1,92 @@
-# BEAT//LINE — v6
+# BEAT//LINE - Android WebView v1
 
-Jogo musical para um único dispositivo. A playlist, as categorias e todos os arquivos MP3 vêm exclusivamente do Supabase.
+Este pacote acrescenta ao repositorio do jogo um aplicativo Android que abre o BEAT//LINE publicado no GitHub Pages.
 
-## Abrir
+Nao altera o HTML, CSS, JavaScript, Supabase ou o banco existente. Os MP3s continuam no Supabase. Nao ha login. A pagina `admin.html` nao aparece no aplicativo e nao e acessivel pela navegacao do WebView; a ADM do site continua independente.
 
-- `index.html`: jogo.
-- `admin.html`: painel de administração de músicas e categorias (acesso somente por URL direta; sem botão na Home).
-- O ícone da logo rosa é usado como favicon nas duas páginas.
-- Extraia o ZIP completo; mantenha as pastas `src` e `assets`.
-- Se o navegador bloquear requisições de páginas abertas com `file://`, sirva a pasta com `python -m http.server 8000` e abra `http://localhost:8000` e `http://localhost:8000/admin.html`.
+## O que vem no pacote
 
-## Supabase
+- `android/`: projeto Android nativo (Java + WebView, sem Capacitor e sem dependencias de interface adicionais).
+- `.github/workflows/beatline-android-apk.yml`: automacao que compila um APK de teste no GitHub Actions.
+- `README.md`: estas instrucoes.
 
-As configurações públicas da conexão são fixas em `src/config.js`. Não existe formulário para alterá-las. O esquema utilizado é `beatline_categories`, `beatline_tracks`, `beatline_track_categories` e o bucket público `beatline-music`. As tabelas e políticas devem existir no Supabase.
+## Passo a passo - gerar o primeiro APK sem Android Studio
 
-A página ADM permite cadastrar, editar e excluir músicas (upload/substituição de MP3) e categorias (associação de várias categorias por música). A aba **Importar em lote** aceita MP3s, uma pasta (em navegadores compatíveis) e ZIPs com MP3s, mostra uma prévia editável, cadastra novas categorias automaticamente, evita duplicados por título/artista/ano e permite editar/excluir as músicas importadas. O jogo lê os dados do mesmo projeto.
+1. Certifique-se de que o site BEAT//LINE v6 esta publicado no GitHub Pages e funciona pelo navegador.
+2. Abra o repositorio GitHub onde ja estao `index.html`, `admin.html`, `assets/` e `src/`.
+3. Extraia este ZIP no computador.
+4. Copie AS DUAS pastas `android` e `.github` para a RAIZ daquele mesmo repositorio. Nao copie uma pasta `beatline-android-v1` inteira para dentro do repositorio.
+5. Confirme que a estrutura ficou assim:
 
-## Publicação e segurança
+   ```text
+   repositorio-do-jogo/
+     index.html
+     admin.html
+     assets/
+     src/
+     android/
+       settings.gradle
+       build.gradle
+       app/
+     .github/
+       workflows/
+         beatline-android-apk.yml
+   ```
 
-**Não há login, conforme solicitado.** As permissões anônimas de escrita do Supabase atualmente permitem que qualquer pessoa que acesse a API pública altere ou exclua dados e arquivos. Publicar o repositório no GitHub não equivale a proteger o banco. Antes de disponibilizar a aplicação em uma URL pública, revise o acesso à ADM e as políticas RLS/Storage, sem precisar necessariamente adicionar login à interface.
+6. Faca commit e push desses arquivos (pelo GitHub Desktop, Git ou upload pela interface web).
+7. No GitHub, entre em **Actions > BEATLINE - Gerar APK Android**. Caso nao comece automaticamente, clique em **Run workflow**.
+8. Aguarde o job **build-apk** terminar com status verde.
+9. Abra a execucao, encontre **Artifacts**, clique em **beatline-android-apk** e baixe o artefato.
+10. Extraia o ZIP que o GitHub baixou: nele estara `app-debug.apk`. Envie o APK ao celular Android e instale. O Android pode pedir autorizacao para instalar aplicativos desta origem.
 
-Nunca inclua chaves `service_role` ou `sb_secret_*` no frontend. Não armazene MP3s no repositório.
+**Importante:** O ZIP entregue neste chat contem o PROJETO, nao um APK ja compilado. O APK e criado pelo GitHub Actions porque este ambiente nao tem o Android SDK instalado.
 
-O SQL de manutenção é fornecido separadamente no chat conforme as instruções do projeto.
+## Como a URL e definida automaticamente
 
-## Importação em lote
+O workflow detecta automaticamente o usuario e o nome do repositorio em que ele estiver rodando:
 
-Formato de arquivo: `nomemusica-nomeartista-ano-categoria1-categoria2.mp3`.
+- Repositorio `meuusuario/beatline`: `https://meuusuario.github.io/beatline/`
+- Repositorio especial `meuusuario/meuusuario.github.io`: `https://meuusuario.github.io/`
 
-- Separador obrigatório: hífen simples (`-`). Sem limite fixo de categorias. Não inclua hífens nos campos; se necessário, ajuste a prévia antes de cadastrar.
-- Categorias no nome dos arquivos são normalizadas em maiúsculas. Nomes de categorias existentes são reutilizados; os novos são criados automaticamente. Cada nome de categoria pode ter até 40 caracteres na interface.
-- É possível selecionar vários MP3s, arrastar arquivos, escolher uma pasta (Chrome/Opera ou outro navegador que suporte `webkitdirectory`) ou enviar ZIPs. O pacote JSZip está incluído localmente para leitura dos ZIPs.
-- Limites técnicos: cada MP3 deve ter no máximo 20 MiB (limite do bucket); por seleção, ZIPs aceitam no máximo 500 MiB de áudio descompactado para evitar travamentos. Você pode fazer diversas importações.
-- Músicas repetidas por título + artista + ano são identificadas e não enviadas; revise os itens sinalizados. Importações são sequenciais e exibem progresso e erros por item.
-- Após enviar, a lista permite ajustar metadados e categorias ou excluir músicas já cadastradas. O botão **Limpar lista** remove só o histórico da importação da tela, nunca os dados enviados.
-- Se o navegador for fechado durante uma importação, consulte a aba Músicas antes de reenviar para evitar duplicações.
-- O leitor JSZip (MIT/GPLv3) foi incluído em `src/jszip.min.js` e a respectiva licença em `src/JSZIP-LICENSE.md`.
+Se o jogo estiver publicado em um endereco diferente (por exemplo dominio proprio, subpasta ou site em outro repositorio), configure uma Repository variable no GitHub:
+
+- Settings > Secrets and variables > Actions > Variables > New repository variable
+- Name: `BEATLINE_GAME_URL`
+- Value: URL COMPLETA com `https://`, por exemplo `https://jogo.exemplo.com/`
+
+Depois execute o workflow novamente. Nao e preciso alterar o Java ou o Supabase.
+
+## Atualizacoes futuras
+
+- Atualizacao do site (HTML/CSS/JS): atualize o GitHub Pages; o mesmo APK passara a carregar o site atualizado. Pode haver cache temporario ate o navegador atualizar os arquivos.
+- Atualizacao do catalogo ou MP3s: atualize pela ADM; o app passa a consultar os dados mais recentes do Supabase.
+- Mudanca no icone, URL embutida ou codigo Android: gere um novo APK.
+- O APK atual e `debug`, proprio para instalacao e teste fora da Play Store. Ele e assinado com a chave de debug do ambiente de build. Compilacoes futuras podem exigir desinstalar o APK anterior se a assinatura for diferente. Para atualizacoes instalaveis sem desinstalacao, precisaremos configurar assinatura de release com uma chave persistente.
+
+## Comportamentos do aplicativo
+
+- Icone Android derivado do favicon rosa do BEAT//LINE v6.
+- WebView HTTPS em tela cheia; barra de endereco e menus de navegador ficam ocultos.
+- Rotacao automatica para retrato/paisagem.
+- JavaScript e DOM Storage habilitados para o funcionamento do jogo.
+- Audio reproduzido sob comando do jogador (sem autoplay).
+- Recurso de erro de conexao com botao para tentar novamente.
+- Links externos, caso existam, abrem o navegador externo.
+- `admin.html` bloqueado na navegacao interna do aplicativo; continua existindo no site e precisa de protecao separada se o site for publico.
+- Internet necessaria para o site, para o Supabase e para os MP3s.
+
+## Como compilar localmente (opcional)
+
+Instale Android Studio, JDK 17, Gradle 8.11.1 e Android SDK 35. Na pasta `android/`:
+
+```bash
+gradle -PgameUrl=https://SEU-USUARIO.github.io/SEU-REPOSITORIO/ :app:assembleDebug
+```
+
+O APK sera criado em `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## Seguranca
+
+O APK nao contem senhas ou chaves de administrador; ele abre a pagina web publica. Continua valendo a advertencia sobre as permissoes anonimas de gravacao no Supabase usadas pelo prototipo. Ocultar a ADM no aplicativo nao equivale a proteger a rota `admin.html` ou a API do banco.
+
+Nenhum SQL adicional e necessario para este pacote Android.

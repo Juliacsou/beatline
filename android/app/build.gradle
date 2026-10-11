@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+// GitHub Actions passes -PgameUrl=https://owner.github.io/repository/
+// The local fallback is deliberately invalid, to prevent silently opening the wrong site.
+def gameUrl = (project.findProperty('gameUrl') ?: 'https://not-configured.invalid/').toString().trim()
+if (!gameUrl.startsWith('https://')) {
+    throw new GradleException('gameUrl must start with https://')
+}
+if (!gameUrl.endsWith('/')) {
+    gameUrl += '/'
+}
+def escapedGameUrl = gameUrl.replace('\\', '\\\\').replace('"', '\\"')
+
+android {
+    namespace 'com.beatline.android'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.beatline.android'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+        buildConfigField 'String', 'GAME_URL', '"' + escapedGameUrl + '"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
