@@ -23,6 +23,26 @@ async function loadCatalog(c){
   });
   return {categories, tracks:tracks.map(t => ({...t, category_ids:byTrack.get(t.id) || []}))};
 }
+// Busca paginada: garante exportar todas as músicas, mesmo quando o catálogo passa de 1000 linhas.
+async function exportCatalog(c){
+  async function allRows(table, columns, order){
+    const batch=500;
+    const rows=[];
+    for(let offset=0;;offset+=batch){
+      const page=await request(c,`/rest/v1/${table}?select=${columns}&order=${order}&limit=${batch}&offset=${offset}`);
+      if(!Array.isArray(page))throw new Error('Formato inesperado de resposta do Supabase.');
+      rows.push(...page);
+      if(page.length<batch)break;
+    }
+    return rows;
+  }
+  const [tracks,categories,relationships]=await Promise.all([
+    allRows('beatline_tracks','id,title,artist,release_year,file_path','id.asc'),
+    allRows('beatline_categories','id,name','id.asc'),
+    allRows('beatline_track_categories','track_id,category_id','track_id.asc,category_id.asc')
+  ]);
+  return {tracks,categories,relationships};
+}
 async function saveCategory(c,payload,previous){
   if(previous)return request(c,`/rest/v1/beatline_categories?id=eq.${enc(previous.id)}`,{method:'PATCH',body:payload,extraHeaders:{Prefer:'return=representation'}});
   return request(c,'/rest/v1/beatline_categories',{method:'POST',body:payload,extraHeaders:{Prefer:'return=representation'}});
@@ -58,6 +78,6 @@ async function saveTrack(c,{payload,file,ids,previous}){
 async function deleteTrack(c,track){if(!track)throw new Error('Música não encontrada.');await request(c,`/rest/v1/beatline_tracks?id=eq.${enc(track.id)}`,{method:'DELETE'});if(track.file_path)await removeMP3(c,track.file_path).catch(()=>{});}
 
 // API global para ser usada por scripts classicos e funcionar tambem via file://
-window.BeatlineDB = { loadCatalog, saveCategory, deleteCategory, saveTrack, deleteTrack };
+window.BeatlineDB = { loadCatalog, exportCatalog, saveCategory, deleteCategory, saveTrack, deleteTrack };
 
 })();
