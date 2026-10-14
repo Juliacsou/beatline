@@ -63,3 +63,14 @@ O APK Android usa WebView e carrega o jogo hospedado. As mudanças web entram no
 
 ### Ajuste visual V6
 - Botoes de aumentar/diminuir e opcoes infinitas dos paineis de musicas e vidas agora compartilham as mesmas alturas e linhas de layout (desktop e mobile).
+
+
+## Atualização V7: login administrativo unificado da AltiGames
+
+- `admin.html` usa Supabase Auth (e-mail/senha) e verifica `public.is_altigames_admin()` antes de exibir o painel.
+- O mesmo usuário e senha do Supabase Auth serve para outros jogos no mesmo projeto. Sessões continuam separadas por origem no navegador.
+- Requisições de escrita ao Supabase REST e Storage enviam o JWT autenticado, renovado automaticamente quando necessário.
+- `index.html` e partidas continuam públicos, sem login.
+- A versão mantém os MP3 no Supabase Storage. A migração dos arquivos para o R2 é uma etapa separada; não altere caminhos de arquivos ainda.
+- **Atenção:** as políticas RLS antigas com `ALL TO anon USING (true)` precisam ser removidas **após testar** esta versão (instruções SQL fornecidas no chat), ou as APIs continuarão aceitando escritas anônimas. Não é seguro só esconder o painel com login.
+- A API do R2 para uploads e exclusões também deverá validar o JWT e a permissão de administrador quando for implementada.

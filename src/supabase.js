@@ -2,8 +2,15 @@
 // Supabase REST + Storage. Nenhuma música ou MP3 reside no código do jogo.
 function apiBase(c){return c.url.replace(/\/+$/,'');}
 function headers(c,additional={}){const h={'apikey':c.key,...additional};if(!c.key.startsWith('sb_publishable_'))h.Authorization=`Bearer ${c.key}`;return h;}
+async function writeHeaders(c,extra={}){
+  if (!window.BeatlineAuth) throw new Error('Abra a página administrativa para modificar o catálogo.');
+  const token=await window.BeatlineAuth.accessToken();
+  return headers(c,{...extra,Authorization:`Bearer ${token}`});
+}
 async function request(c,path,{method='GET',body,extraHeaders={}}={}){
-  const response=await fetch(`${apiBase(c)}${path}`,{method,headers:headers(c,{...(body!==undefined?{'Content-Type':'application/json'}:{}),...extraHeaders}),body:body!==undefined?JSON.stringify(body):undefined});
+  const contentHeaders={...(body!==undefined?{'Content-Type':'application/json'}:{}),...extraHeaders};
+  const authHeaders=method==='GET'?headers(c,contentHeaders):await writeHeaders(c,contentHeaders);
+  const response=await fetch(`${apiBase(c)}${path}`,{method,headers:authHeaders,body:body!==undefined?JSON.stringify(body):undefined});
   const text=await response.text();let data=null;try{data=text?JSON.parse(text):null;}catch{data=text;}
   if(!response.ok){let message=typeof data==='object'&&data?(data.message||data.error_description||data.error||data.hint||data.details):data;throw new Error(message||`HTTP ${response.status}`);}return data;
 }
@@ -52,11 +59,11 @@ async function deleteCategory(c,id){return request(c,`/rest/v1/beatline_categori
 async function uploadMP3(c,file){
   const id=globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const path=`${id}.mp3`;
-  const result=await fetch(`${apiBase(c)}/storage/v1/object/beatline-music/${path}`,{method:'POST',headers:headers(c,{'Content-Type':'audio/mpeg','x-upsert':'false'}),body:file});
+  const result=await fetch(`${apiBase(c)}/storage/v1/object/beatline-music/${path}`,{method:'POST',headers:await writeHeaders(c,{'Content-Type':'audio/mpeg','x-upsert':'false'}),body:file});
   if(!result.ok){let detail='';try{detail=(await result.json()).message||'';}catch{}throw new Error(detail||`Falha no upload (${result.status})`);}
   return path;
 }
-async function removeMP3(c,path){if(!path)return;const result=await fetch(`${apiBase(c)}/storage/v1/object/beatline-music/${path.split('/').map(enc).join('/')}`,{method:'DELETE',headers:headers(c)});if(!result.ok)throw new Error(`Falha ao excluir MP3 do Storage (${result.status}).`);}
+async function removeMP3(c,path){if(!path)return;const result=await fetch(`${apiBase(c)}/storage/v1/object/beatline-music/${path.split('/').map(enc).join('/')}`,{method:'DELETE',headers:await writeHeaders(c)});if(!result.ok)throw new Error(`Falha ao excluir MP3 do Storage (${result.status}).`);}
 async function saveTrack(c,{payload,file,ids,previous}){
   let path=previous?.file_path||null,uploaded=null,saved=false,createdId=null;
   try{
