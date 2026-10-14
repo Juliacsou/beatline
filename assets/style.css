@@ -127,3 +127,44 @@
 /* Botões de catálogo: mantém a exportação acessível em telas pequenas. */
 .admin-title-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px}
 @media(max-width:520px){.admin-titlebar:has(.admin-title-actions){flex-wrap:wrap}.admin-title-actions{width:100%;justify-content:flex-start}.admin-title-actions .small-action{font-size:10px;padding:8px 10px}}
+
+/* Beatline - filtros por facetas, inclusoes e exclusoes */
+.filter-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-mode-toggle{display:inline-flex;background:#f0ebd9;border:2px solid #111;border-radius:12px;padding:3px;gap:3px}
+.filter-mode-btn,.filter-reset{display:inline-flex;align-items:center;justify-content:center;gap:5px;font:900 10px/1.2 'Outfit',sans-serif;letter-spacing:.4px;border:2px solid transparent;border-radius:8px;padding:8px 11px;background:transparent;color:#111;min-height:34px;cursor:pointer}
+.filter-mode-btn svg,.filter-reset svg{width:14px;height:14px}
+.filter-mode-btn.active{border-color:#111;box-shadow:2px 2px 0 #111}
+.filter-mode-btn.include.active{background:var(--lime)}
+.filter-mode-btn.exclude.active{background:var(--pink)}
+.filter-reset{border:1px dashed #111;background:#fffaf0}
+.filter-reset:disabled{opacity:.4}
+.filter-explanation{font:500 11px/1.45 'Outfit',sans-serif;margin:10px 0 12px;color:#49433d}
+.filter-explanation strong{color:#111;font-weight:900}
+.filter-groups{display:grid;gap:13px}
+.filter-group{min-width:0}
+.filter-group-heading{font:700 10px 'DM Mono',monospace;letter-spacing:.7px;color:#645b57;margin-bottom:6px}
+.filter-group .chip-wrap{gap:7px}
+.filter-group .cat-chip{min-height:31px;padding:6px 12px;font-size:11px;border-radius:99px;transition:background .12s,box-shadow .12s}
+.filter-group .cat-chip.include{background:var(--lime);box-shadow:2px 2px #111}
+.filter-group .cat-chip.exclude{background:var(--pink);box-shadow:2px 2px #111}
+.filter-group .cat-chip.neutral{background:#fff}
+.filter-group .cat-chip:focus-visible,.filter-mode-btn:focus-visible{outline:3px solid #824cff;outline-offset:2px}
+.filter-status{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:13px;padding:9px 11px;border:2px dashed #1118;border-radius:8px;background:#fff;font:500 10px 'DM Mono',monospace}
+.filter-status strong{font-weight:800;color:#111}
+@media(max-width:700px){.filter-mode-btn,.filter-reset{padding:6px 9px}.filter-explanation{font-size:10px}.filter-groups{gap:10px}.filter-group .cat-chip{min-height:29px;padding:5px 10px;font-size:10px}.filter-status{font-size:9px}}
+
+/* Seek: faixa inteira clicavel/arrastavel, sem alterar os botoes originais. */
+.progress-line{overflow:visible;cursor:pointer}
+.progress-seek{position:absolute;inset:50% 0 auto 0;transform:translateY(-50%);height:28px;width:100%;margin:0;z-index:2;appearance:none;-webkit-appearance:none;background:transparent;border:0;cursor:pointer;touch-action:pan-x}
+.progress-seek::-webkit-slider-runnable-track{height:7px;background:transparent}
+.progress-seek::-moz-range-track{height:7px;background:transparent}
+.progress-seek::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;margin-top:-4px;background:var(--pink);border:2px solid #111;border-radius:50%;box-shadow:1px 1px #111}
+.progress-seek::-moz-range-thumb{width:11px;height:11px;background:var(--pink);border:2px solid #111;border-radius:50%;box-shadow:1px 1px #111}
+.progress-seek:focus-visible{outline:2px solid #8d36f7;outline-offset:3px;border-radius:6px}
+
+/* O cartao rosa tambem pode ser arrastado no desktop e no celular. */
+.slot.selected{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.slot.selected:active{cursor:grabbing}
+.slot.selected.dragover{border:3px solid #111;box-shadow:0 0 0 4px var(--lime),4px 4px #111}
+/* Sem o adesivo sobre o botao de iniciar, sobretudo em telas estreitas. */
+.config-panel::after{display:none!important}

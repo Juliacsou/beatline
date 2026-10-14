@@ -8,13 +8,25 @@ async function request(c,path,{method='GET',body,extraHeaders={}}={}){
   if(!response.ok){let message=typeof data==='object'&&data?(data.message||data.error_description||data.error||data.hint||data.details):data;throw new Error(message||`HTTP ${response.status}`);}return data;
 }
 const enc=x=>encodeURIComponent(String(x));
+async function allRows(c,table,columns,order){
+  // PostgREST costuma limitar a resposta a 1000 linhas. Carregamos todas para
+  // que as combinacoes de filtros e os sorteios contemplem o catalogo inteiro.
+  const batch=500;
+  const rows=[];
+  for(let offset=0;;offset+=batch){
+    const page=await request(c,`/rest/v1/${table}?select=${columns}&order=${order}&limit=${batch}&offset=${offset}`);
+    if(!Array.isArray(page))throw new Error('Formato inesperado de resposta do Supabase.');
+    rows.push(...page);
+    if(page.length<batch)break;
+  }
+  return rows;
+}
 async function loadCatalog(c){
   // Consultas independentes, sem depender do relacionamento em cache no PostgREST.
-  // Isso evita conflitos com tabelas genericas usadas por outros jogos.
   const [categories, tracks, relationships] = await Promise.all([
-    request(c, '/rest/v1/beatline_categories?select=id,name,color&order=name.asc'),
-    request(c, '/rest/v1/beatline_tracks?select=id,title,artist,release_year,file_path&order=title.asc'),
-    request(c, '/rest/v1/beatline_track_categories?select=track_id,category_id')
+    allRows(c,'beatline_categories','id,name,color','name.asc'),
+    allRows(c,'beatline_tracks','id,title,artist,release_year,file_path','title.asc'),
+    allRows(c,'beatline_track_categories','track_id,category_id','track_id.asc,category_id.asc')
   ]);
   const byTrack = new Map();
   relationships.forEach(({track_id, category_id}) => {
@@ -25,21 +37,10 @@ async function loadCatalog(c){
 }
 // Busca paginada: garante exportar todas as músicas, mesmo quando o catálogo passa de 1000 linhas.
 async function exportCatalog(c){
-  async function allRows(table, columns, order){
-    const batch=500;
-    const rows=[];
-    for(let offset=0;;offset+=batch){
-      const page=await request(c,`/rest/v1/${table}?select=${columns}&order=${order}&limit=${batch}&offset=${offset}`);
-      if(!Array.isArray(page))throw new Error('Formato inesperado de resposta do Supabase.');
-      rows.push(...page);
-      if(page.length<batch)break;
-    }
-    return rows;
-  }
   const [tracks,categories,relationships]=await Promise.all([
-    allRows('beatline_tracks','id,title,artist,release_year,file_path','id.asc'),
-    allRows('beatline_categories','id,name','id.asc'),
-    allRows('beatline_track_categories','track_id,category_id','track_id.asc,category_id.asc')
+    allRows(c,'beatline_tracks','id,title,artist,release_year,file_path','id.asc'),
+    allRows(c,'beatline_categories','id,name','id.asc'),
+    allRows(c,'beatline_track_categories','track_id,category_id','track_id.asc,category_id.asc')
   ]);
   return {tracks,categories,relationships};
 }
