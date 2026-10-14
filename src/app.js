@@ -142,7 +142,7 @@ function seekAudio(value){
   state.playedSeconds=time;
   refreshPlayer();
 }
-function setAudioSrc(){if(!state.connected)return;const song=currentSong();if(!song)return;audioRequestVersion++;const base=state.connection.url.replace(/\/+$/,'');audio.src=`${base}/storage/v1/object/public/beatline-music/${song.file_path.split('/').map(encodeURIComponent).join('/')}`;audio.load();state.totalSeconds=0;state.playedSeconds=0;}
+function setAudioSrc(){if(!state.connected)return;const song=currentSong();if(!song)return;audioRequestVersion++;const base=window.BEATLINE_MEDIA.publicBase.replace(/\/+$/,'');audio.src=`${base}/${song.file_path.split('/').map(encodeURIComponent).join('/')}`;audio.load();state.totalSeconds=0;state.playedSeconds=0;}
 async function togglePlay(){
   if(state.reveal)return;
   if(!audio.getAttribute('src'))setAudioSrc();
@@ -163,7 +163,7 @@ function restartAudio(){
 audio.addEventListener('timeupdate',()=>{state.playedSeconds=audio.currentTime||0;refreshPlayer();});
 audio.addEventListener('loadedmetadata',()=>{state.totalSeconds=Number.isFinite(audio.duration)?audio.duration:0;refreshPlayer();});
 audio.addEventListener('ended',()=>{state.playing=false;refreshPlayer();});
-audio.addEventListener('error',()=>{if(state.page==='game'&&audio.getAttribute('src'))toast('Falha ao carregar o arquivo MP3. Confira o Storage.');});
+audio.addEventListener('error',()=>{if(state.page==='game'&&audio.getAttribute('src'))toast('Falha ao carregar o MP3 no Cloudflare R2.');});
 function shuffle(a){let arr=[...a];for(let i=arr.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
 // Em modo infinito, nenhuma faixa se repete antes de todas as elegíveis serem usadas.
 // Ao acabar o catálogo, embaralhamos novamente e evitamos repetir imediatamente a última.

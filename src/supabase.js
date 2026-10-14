@@ -56,14 +56,38 @@ async function saveCategory(c,payload,previous){
   return request(c,'/rest/v1/beatline_categories',{method:'POST',body:payload,extraHeaders:{Prefer:'return=representation'}});
 }
 async function deleteCategory(c,id){return request(c,`/rest/v1/beatline_categories?id=eq.${enc(id)}`,{method:'DELETE'});}
-async function uploadMP3(c,file){
-  const id=globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const path=`${id}.mp3`;
-  const result=await fetch(`${apiBase(c)}/storage/v1/object/beatline-music/${path}`,{method:'POST',headers:await writeHeaders(c,{'Content-Type':'audio/mpeg','x-upsert':'false'}),body:file});
-  if(!result.ok){let detail='';try{detail=(await result.json()).message||'';}catch{}throw new Error(detail||`Falha no upload (${result.status})`);}
-  return path;
+function mediaAPI(){
+  const base=window.BEATLINE_MEDIA?.apiBase;
+  if(!base)throw new Error('API de midia nao configurada.');
+  return base.replace(/\/+$/,'');
 }
-async function removeMP3(c,path){if(!path)return;const result=await fetch(`${apiBase(c)}/storage/v1/object/beatline-music/${path.split('/').map(enc).join('/')}`,{method:'DELETE',headers:await writeHeaders(c)});if(!result.ok)throw new Error(`Falha ao excluir MP3 do Storage (${result.status}).`);}
+async function mediaRequest(c,url,options){
+  if(!window.BeatlineAuth)throw new Error('Faca login administrativo para gerenciar MP3.');
+  const token=await window.BeatlineAuth.accessToken();
+  const response=await fetch(url,{...options,headers:{...(options.headers||{}),Authorization:`Bearer ${token}`}});
+  const payload=await response.json().catch(()=>null);
+  if(!response.ok)throw new Error(payload?.error||`Falha na API de midia (${response.status})`);
+  return payload;
+}
+async function uploadMP3(c,file){
+  const form=new FormData();
+  form.append('file',file);
+  const data=await mediaRequest(c,`${mediaAPI()}/upload`,{method:'POST',body:form});
+  const prefix='beatline/musicas/';
+  if(!data?.success||typeof data.key!=='string'||!data.key.startsWith(prefix)){
+    throw new Error('A API nao retornou um caminho valido para o MP3.');
+  }
+  return data.key.slice(prefix.length);
+}
+async function removeMP3(c,path){
+  if(!path)return;
+  // A API so aceita arquivos MP3 com identificador UUID, como os do catalogo.
+  const filename=String(path).split('/').pop();
+  if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\.mp3$/i.test(filename))
+    throw new Error('Nome do MP3 invalido para exclusao no R2.');
+  const key=`beatline/musicas/${filename}`;
+  await mediaRequest(c,`${mediaAPI()}/file?key=${encodeURIComponent(key)}`,{method:'DELETE'});
+}
 async function saveTrack(c,{payload,file,ids,previous}){
   let path=previous?.file_path||null,uploaded=null,saved=false,createdId=null;
   try{

@@ -1,6 +1,17 @@
+## Versao 8 — Cloudflare R2
+
+- **Reproducao:** `https://audio.altigames.com.br/beatline/musicas/<file_path>`.
+- **Upload/exclusao:** Cloudflare Worker `altigames-media-api`, autenticado com o token da conta administrativa Supabase.
+- **Banco:** permanece no Supabase, mantendo o `file_path` original (UUID.mp3) das 269 musicas migradas. Nenhum SQL de migracao necessario.
+- **Limite de upload:** 20 MB por arquivo no Worker; o painel mostra eventuais erros vindos da API.
+- **Seguranca:** nao colocar credenciais R2 no GitHub; o Worker deve validar token e permissao `altigames_admins`.
+- **Cuidado:** manter originais no Supabase Storage ate validar reproducao, cadastro, substituicao e exclusao.
+- **Publicacao:** publicar todo o diretorio `beatline` no GitHub Pages; testar primeira partida e upload com arquivo autorizado antes de remover copias antigas.
+- **Exclusao:** a remocao pelo painel atua no R2, nao apaga a copia antiga do Supabase Storage.
+
 # BEAT//LINE — Jogo musical
 
-Projeto web (HTML, CSS e JavaScript), painel administrativo e aplicativo Android WebView. O catálogo e os arquivos MP3 continuam no Supabase existente; não é necessário criar tabelas novas para esta atualização.
+Projeto web (HTML, CSS e JavaScript), painel administrativo e aplicativo Android WebView. O catálogo e a autenticação continuam no Supabase. Os MP3 são reproduzidos do Cloudflare R2 e gerenciados pelo Worker autenticado.
 
 ## Atualização V5: rolagem horizontal e músicas infinitas
 
