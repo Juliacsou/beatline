@@ -5,11 +5,11 @@ const root = document.getElementById('app');
 const audio = document.getElementById('songAudio');
 const fixedDatabase = window.BEATLINE_SUPABASE;
 const state = {
-  page:document.body.dataset.startPage==='admin'?'admin':'home', adminTab:'musicas', config:{count:8,lives:3,categories:[],excludedCategories:[],filterMode:'include'},
+  page:document.body.dataset.startPage==='admin'?'admin':'home', adminTab:'musicas', config:{count:8,lives:3,infiniteLives:false,infiniteSongs:false,categories:[],excludedCategories:[],filterMode:'include'},
   connection:fixedDatabase, connected:false, connectionError:'', categories:[], tracks:[],
   adminEditing:null, adminFilter:'all', activeForm:false, loading:false, toast:'', modal:'',
   bulk:{rows:[],running:false,extracting:false,processed:0,total:0,note:'',nextId:1},
-  queue:[], timeline:[], wrong:[], refSong:null, round:0, correct:0, livesRemaining:3,
+  queue:[], sessionTracks:[], remainingSongs:[], timeline:[], wrong:[], refSong:null, round:0, correct:0, livesRemaining:3,
   selectedSlot:null, reveal:null, endAfterReveal:false, endReason:'', playing:false,
   playedSeconds:0, totalSeconds:0, muted:false
 };
@@ -51,7 +51,13 @@ function selectedCatNames(ids){return (ids||[]).map(id=>cats().find(c=>c.id===id
 function logo(){return `<button class="logo" data-action="nav-home" aria-label="Página inicial"><span class="logo-burst">${icon('music')}</span><span class="logo-word">BEAT<span>//</span>LINE</span></button>`;}
 function navbar(){return `<header class="topbar">${logo()}<div class="topbar-right"><button class="icon-btn" data-action="nav-home" title="Home" aria-label="Home">${icon('home')}</button></div></header>`;}
 function renderHome(){return `<section class="screen home"><div class="home-copy"><span class="eyebrow">A LINHA DO TEMPO VIROU UM JOGO</span><h1 class="hero-title"><span class="hero-top">BEAT</span><span class="hero-bottom">LINE!</span></h1><p class="hero-sub">Ouviu o hit? Agora encaixa ele na história da música.</p><div class="home-actions"><button class="primary-btn big" data-action="nav-config">${icon('play')} JOGAR AGORA ${icon('arrow')}</button></div></div><div class="home-art" aria-hidden="true"><div class="art-checker"></div><div class="art-cyan"></div><div class="record"><div class="record-center"></div><div class="record-label">BL<span style="color:#fff">//</span></div></div><span class="art-sticker star">WOW!</span><span class="art-sticker tag">PLAY IT!</span><span class="art-squiggle">↝</span></div><div class="home-foot"><span class="foot-icon">${icon('headphones')}</span><span class="foot-icon">${icon('drag')}</span><span class="foot-icon">${icon('check')}</span><span>OUÇA · POSICIONE · REVELE</span></div></section>`;}
-function counter(label,key,number,ic){return `<div class="counter-box ${key==='lives'?'pink':''}"><div class="counter-label">${icon(ic)} ${label}</div><div class="counter-controls"><button class="stepper" data-action="dec-${key}" aria-label="Diminuir ${label}">${icon('minus')}</button><span class="counter-number">${number}</span><button class="stepper" data-action="inc-${key}" aria-label="Aumentar ${label}">${icon('plus')}</button></div></div>`;}
+function counter(label,key,number,ic){
+  const isLives=key==='lives';
+  const infinite=isLives?state.config.infiniteLives:state.config.infiniteSongs;
+  const amount=isLives?`<input class="counter-number life-input" id="lifeCount" type="number" inputmode="numeric" min="0" step="1" value="${number}" aria-label="Quantidade de vidas" ${infinite?'disabled':''}>`:`<span class="counter-number">${infinite?'∞':number}</span>`;
+  const toggle=isLives?'toggle-infinite-lives':'toggle-infinite-songs';
+  return `<div class="counter-box ${isLives?'pink':''}"><div class="counter-label">${icon(ic)} ${label}</div><div class="counter-controls"><button class="stepper" data-action="dec-${key}" aria-label="Diminuir ${label}" ${infinite?'disabled':''}>${icon('minus')}</button>${amount}<button class="stepper" data-action="inc-${key}" aria-label="Aumentar ${label}" ${infinite?'disabled':''}>${icon('plus')}</button></div><button class="infinite-toggle ${infinite?'active':''}" data-action="${toggle}" aria-pressed="${infinite}">∞ ${label} INFINITAS ${infinite?'✓':''}</button></div>`;
+}
 function categoryChip(cat){
   const id=String(cat.id);
   const included=state.config.categories.includes(id);
@@ -63,15 +69,22 @@ function renderConfig(){
   const total=eligibleTracks(catalog(),cats(),state.config.categories,state.config.excludedCategories).length;
   const all=state.config.categories.length===0&&state.config.excludedCategories.length===0;
   const mode=state.config.filterMode;
-  return `<section class="screen config-screen"><div class="config-illustration"><div class="screen-kicker">01 / O AQUECIMENTO</div><h1 class="section-title">MONTE <br>SEU <br><em>MIX!</em></h1><div class="config-graphic">${icon('headphones')}</div></div><div class="config-panel"><h2 class="panel-title">${icon('settings')} CONFIGURE A PARTIDA</h2><div class="config-counters">${counter('MÚSICAS','count',state.config.count,'music')}${counter('VIDAS','lives',state.config.lives,'heart')}</div><div class="field-label">${icon('tag')} FILTROS DA PLAYLIST</div><div class="filter-toolbar"><div class="filter-mode-toggle" role="group" aria-label="Modo de seleção das categorias"><button class="filter-mode-btn include ${mode==='include'?'active':''}" data-action="filter-mode" data-mode="include" aria-pressed="${mode==='include'}">${icon('plus')} INCLUIR</button><button class="filter-mode-btn exclude ${mode==='exclude'?'active':''}" data-action="filter-mode" data-mode="exclude" aria-pressed="${mode==='exclude'}">${icon('minus')} EXCLUIR</button></div><button class="filter-reset" data-action="select-all" ${all?'disabled':''}>${icon('rotate')} LIMPAR</button></div><p class="filter-explanation">Escolha <strong>INCLUIR</strong> ou <strong>EXCLUIR</strong> e toque nas categorias. <strong>OU</strong> dentro de cada grupo, <strong>E</strong> entre grupos. As exclusões sempre prevalecem.</p><div class="filter-groups">${groupedCategories(cats()).map(group=>`<div class="filter-group"><div class="filter-group-heading">${group.name}</div><div class="chip-wrap">${group.categories.map(categoryChip).join('')}</div></div>`).join('')}</div><div class="filter-status" aria-live="polite"><span>${all?'TODAS AS CATEGORIAS':`${state.config.categories.length} INCLUÍDA(S) · ${state.config.excludedCategories.length} EXCLUÍDA(S)`}</span><strong>${state.connected?`${total} MÚSICAS DISPONÍVEIS`:'CARREGANDO CATÁLOGO'}</strong></div><div class="config-bottom"><div class="config-hint">PLAYLIST AUTOMÁTICA · CATÁLOGO MUSICAL<br>1 música-base extra</div><button class="primary-btn" data-action="start-game">COMEÇAR ${icon('arrow')}</button></div></div></section>`;
+  return `<section class="screen config-screen"><div class="config-illustration"><div class="screen-kicker">01 / O AQUECIMENTO</div><h1 class="section-title">MONTE <br>SEU <br><em>MIX!</em></h1><div class="config-graphic">${icon('headphones')}</div></div><div class="config-panel"><h2 class="panel-title">${icon('settings')} CONFIGURE A PARTIDA</h2><div class="config-counters">${counter('MÚSICAS','count',state.config.count,'music')}${counter('VIDAS','lives',state.config.lives,'heart')}</div><div class="field-label">${icon('tag')} FILTROS DA PLAYLIST</div><div class="filter-toolbar"><div class="filter-mode-toggle" role="group" aria-label="Modo de seleção das categorias"><button class="filter-mode-btn include ${mode==='include'?'active':''}" data-action="filter-mode" data-mode="include" aria-pressed="${mode==='include'}">${icon('plus')} INCLUIR</button><button class="filter-mode-btn exclude ${mode==='exclude'?'active':''}" data-action="filter-mode" data-mode="exclude" aria-pressed="${mode==='exclude'}">${icon('minus')} EXCLUIR</button></div><button class="filter-reset" data-action="select-all" ${all?'disabled':''}>${icon('rotate')} LIMPAR</button></div><p class="filter-explanation">Escolha <strong>INCLUIR</strong> ou <strong>EXCLUIR</strong> e toque nas categorias. <strong>OU</strong> dentro de cada grupo, <strong>E</strong> entre grupos. As exclusões sempre prevalecem.</p><div class="filter-groups">${groupedCategories(cats()).map(group=>`<div class="filter-group"><div class="filter-group-heading">${group.name}</div><div class="chip-wrap">${group.categories.map(categoryChip).join('')}</div></div>`).join('')}</div><div class="filter-status" aria-live="polite"><span>${all?'TODAS AS CATEGORIAS':`${state.config.categories.length} INCLUÍDA(S) · ${state.config.excludedCategories.length} EXCLUÍDA(S)`}</span><strong>${state.connected?`${total} MÚSICAS DISPONÍVEIS`:'CARREGANDO CATÁLOGO'}</strong></div><div class="config-bottom"><div class="config-hint">${state.config.infiniteSongs?'MODO INFINITO · MÚSICAS RECICLADAS APÓS ESGOTAR O CATÁLOGO':'PLAYLIST AUTOMÁTICA · CATÁLOGO MUSICAL<br>1 música-base extra'}</div><button class="primary-btn" data-action="start-game">COMEÇAR ${icon('arrow')}</button></div></div></section>`;
 }
 const wave = Array.from({length:25},(_,i)=>`<span style="--h:${8+((i*13+i*i*7)%34)}px;--d:${-((i*71)%100)/100}s"></span>`).join('');
-function lifeHtml(){const n=state.config.lives;let remaining=Math.max(0,state.livesRemaining);if(n===0)return `<div class="life-row"><span class="life-zero">${icon('heart')} 0</span></div>`;return `<div class="life-row" title="Vidas restantes">${Array.from({length:n},(_,i)=>icon('heart',i<remaining?'heart-fill':'empty')).join('')}</div>`;}
+function lifeHtml(){
+  if(state.config.infiniteLives)return `<div class="life-row infinite-lives" title="Vidas infinitas">${icon('heart','heart-fill')} <strong>∞</strong></div>`;
+  const n=state.config.lives,remaining=Math.max(0,state.livesRemaining);
+  if(n===0)return `<div class="life-row"><span class="life-zero">${icon('heart')} 0</span></div>`;
+  // Nunca criar milhares de ícones SVG quando o jogador selecionar muitas vidas.
+  if(n>8)return `<div class="life-row numeric-lives" title="${remaining} de ${n} vidas restantes">${icon('heart','heart-fill')} <strong>${remaining} / ${n}</strong></div>`;
+  return `<div class="life-row" title="Vidas restantes">${Array.from({length:n},(_,i)=>icon('heart',i<remaining?'heart-fill':'empty')).join('')}</div>`;
+}
 function timelineHtml(){return state.timeline.map((song,index)=>`${slotHtml(index)}<article class="timeline-card" data-before="${index}"><span class="track-id">● #${String(index+1).padStart(2,'0')}</span><strong class="timeline-title">${h(song.title)}</strong><span class="timeline-year">${h(song.release_year)}</span></article>`).join('')+slotHtml(state.timeline.length);}
 function slotHtml(index){const chosen=state.selectedSlot===index;const song=chosen?currentSong():null;return `<button class="slot ${chosen?'selected':''}" data-action="slot" data-slot="${index}" aria-label="Colocar música na posição ${index+1}" title="${chosen?'Arraste para mudar a posição (ou toque em outro espaço)':'Posição '+(index+1)}">${song?`<span class="slot-mini-meta">♪ SUA FAIXA ↔</span><strong class="slot-mini-title">${h(song.title)}</strong><span class="slot-mini-artist">${h(song.artist||'')}</span>`:''}</button>`;}
 function secondsLabel(seconds){const x=Math.max(0,Math.floor(seconds||0));return `${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}`;}
 function currentSong(){return state.queue[state.round];}
-function renderGame(){const song=currentSong();if(!song)return '';return `<section class="screen game-screen"><div class="game-head"><div class="game-head-left"><span class="game-stage-label">PLAYLIST EM ANDAMENTO</span><span class="round-pill">${String(state.round+1).padStart(2,'0')} / ${String(state.queue.length).padStart(2,'0')}</span></div><div class="game-head-right">${lifeHtml()}<button class="icon-btn" data-action="request-home" title="Sair da partida">${icon('close')}</button></div></div><div class="board"><div class="board-top"><strong>↳ LINHA DO TEMPO</strong><span>ANTES ← &nbsp; / &nbsp; → DEPOIS</span></div><div class="timeline-scroller"><div class="timeline-row">${timelineHtml()}</div></div>${state.wrong.length?`<button class="missed-stack" data-action="show-wrong"><span>✕ ERROS · ${state.wrong.length}</span><strong>${h(state.wrong.at(-1).title)}</strong><em>${h(state.wrong.at(-1).release_year)}</em></button>`:''}<div class="board-footer"><span>${icon('drag')} ARRASTE A FAIXA (INCLUSIVE A ROSA) OU TOQUE EM OUTRO ESPAÇO</span><span>♫ &nbsp; ORDEM CRONOLÓGICA</span></div></div><div class="play-area"><div class="now-card"><div class="grab-area" id="grabSong" role="button" tabindex="0" aria-label="Arraste a música para a linha do tempo"><span class="album-icon">${icon('album')}</span><div class="now-info"><div class="now-label">▶ SUA PRÓXIMA FAIXA</div><div class="now-title">${h(song.title)}</div><div class="now-artist">${h(song.artist||'ARTISTA NÃO INFORMADO')}</div></div></div><span class="grab-indicator">${icon('drag')}</span></div><div class="player-box"><div class="player-upper"><div class="player-controls"><button class="play-btn" data-action="play" aria-label="${state.playing?'Pausar':'Reproduzir'}">${icon(state.playing?'pause':'play')}</button><button class="restart-btn" data-action="restart-audio" title="Reiniciar áudio" aria-label="Reiniciar">${icon('rotate')}</button></div><div class="waveform ${state.playing?'playing':''}">${wave}</div></div><div class="progress-line"><div class="progress-bar" style="width:${state.totalSeconds>0?Math.min(100,Math.round(state.playedSeconds/state.totalSeconds*100)):0}%"></div><input class="progress-seek" id="audioSeek" type="range" min="0" max="${state.totalSeconds||0}" step="0.1" value="${Math.min(state.playedSeconds,state.totalSeconds)||0}" aria-label="Avançar ou retroceder a música" title="Arraste para escolher o trecho"></div><div class="time-labels"><span>${secondsLabel(state.playedSeconds)}</span><span>${secondsLabel(state.totalSeconds)}</span></div></div><div class="submit-box"><button class="submit-btn" data-action="confirm" ${state.selectedSlot===null?'disabled':''}>${icon('check')} CONFIRMAR</button>${state.wrong.length?`<div class="wrong-bubble">${icon('x')} ${state.wrong.length} ERRO(S)<button data-action="show-wrong" title="Ver músicas erradas">${icon('list')}</button></div>`:''}</div></div>${state.reveal?renderReveal():''}</section>`;}
+function renderGame(){const song=currentSong();if(!song)return '';return `<section class="screen game-screen"><div class="game-head"><div class="game-head-left"><span class="game-stage-label">PLAYLIST EM ANDAMENTO</span><span class="round-pill">${String(state.round+1).padStart(2,'0')} / ${state.config.infiniteSongs?'∞':String(state.queue.length).padStart(2,'0')}</span></div><div class="game-head-right">${lifeHtml()}<button class="icon-btn" data-action="request-home" title="Sair da partida">${icon('close')}</button></div></div><div class="board"><div class="board-top"><strong>↳ LINHA DO TEMPO</strong><span>ANTES ← &nbsp; / &nbsp; → DEPOIS</span></div><div class="timeline-scroller"><div class="timeline-row">${timelineHtml()}</div></div>${state.wrong.length?`<button class="missed-stack" data-action="show-wrong"><span>✕ ERROS · ${state.wrong.length}</span><strong>${h(state.wrong.at(-1).title)}</strong><em>${h(state.wrong.at(-1).release_year)}</em></button>`:''}<div class="board-footer"><span>${icon('drag')} ARRASTE A FAIXA OU TOQUE NO ESPAÇO · ROLE COM MOUSE / TOUCHPAD</span><span>♫ &nbsp; ORDEM CRONOLÓGICA</span></div></div><div class="play-area"><div class="now-card"><div class="grab-area" id="grabSong" role="button" tabindex="0" aria-label="Arraste a música para a linha do tempo"><span class="album-icon">${icon('album')}</span><div class="now-info"><div class="now-label">▶ SUA PRÓXIMA FAIXA</div><div class="now-title">${h(song.title)}</div><div class="now-artist">${h(song.artist||'ARTISTA NÃO INFORMADO')}</div></div></div><span class="grab-indicator">${icon('drag')}</span></div><div class="player-box"><div class="player-upper"><div class="player-controls"><button class="play-btn" data-action="play" aria-label="${state.playing?'Pausar':'Reproduzir'}">${icon(state.playing?'pause':'play')}</button><button class="restart-btn" data-action="restart-audio" title="Reiniciar áudio" aria-label="Reiniciar">${icon('rotate')}</button></div><div class="waveform ${state.playing?'playing':''}">${wave}</div></div><div class="progress-line"><div class="progress-bar" style="width:${state.totalSeconds>0?Math.min(100,Math.round(state.playedSeconds/state.totalSeconds*100)):0}%"></div><input class="progress-seek" id="audioSeek" type="range" min="0" max="${state.totalSeconds||0}" step="0.1" value="${Math.min(state.playedSeconds,state.totalSeconds)||0}" aria-label="Avançar ou retroceder a música" title="Arraste para escolher o trecho"></div><div class="time-labels"><span>${secondsLabel(state.playedSeconds)}</span><span>${secondsLabel(state.totalSeconds)}</span></div></div><div class="submit-box"><button class="submit-btn" data-action="confirm" ${state.selectedSlot===null?'disabled':''}>${icon('check')} CONFIRMAR</button>${state.wrong.length?`<div class="wrong-bubble">${icon('x')} ${state.wrong.length} ERRO(S)<button data-action="show-wrong" title="Ver músicas erradas">${icon('list')}</button></div>`:''}</div></div>${state.reveal?renderReveal():''}</section>`;}
 function renderReveal(){const r=state.reveal;return `<div class="result-shade"><div class="result-box ${r.correct?'':'wrong'}"><div class="result-icon">${icon(r.correct?'check':'x')}</div><h2 class="result-title">${r.correct?'NA MOSCA!':'FORA DO TOM!'}</h2><div class="result-track">${h(r.song.title)}</div><div class="result-year">${h(r.song.release_year)}</div><button class="primary-btn" data-action="next-round">${state.endAfterReveal?'VER RESULTADO':'PRÓXIMA FAIXA'} ${icon('arrow')}</button></div></div>`;}
 function renderEnd(){const completed=state.endReason==='complete';return `<section class="screen end-screen"><div class="end-left"><div class="screen-kicker">FIM DA TRANSMISSÃO</div><h1 class="section-title">${completed?'SEU MIX<br><em>FECHOU!</em>':'FIM DE<br><em>JOGO!</em>'}</h1><p class="hero-sub">${completed?'Você chegou ao fim da playlist.':'As chances acabaram. Hora de uma revanche?'}</p></div><div class="end-card"><div class="end-score"><div class="score-number">${state.correct}</div><div class="score-caption">ACERTOS<br>DE ${state.round+1}<br>FAIXAS JOGADAS</div>${icon('trophy','end-trophy')}</div><div class="end-actions"><button class="pink-btn" data-action="retry">${icon('rotate')} JOGAR DE NOVO</button><button class="primary-btn" data-action="nav-config">${icon('settings')} NOVA PARTIDA</button><button class="secondary-btn" data-action="nav-home">${icon('home')} HOME</button></div>${state.wrong.length?`<div class="missed-items"><details><summary>${state.wrong.length} MÚSICA(S) FORA DA LINHA</summary>${state.wrong.map(s=>`<div>✕ ${h(s.title)} · ${h(s.release_year)}</div>`).join('')}</details></div>`:''}</div></section>`;}
 function adminSidebar(){let menu=[['musicas','music','Músicas'],['categorias','tag','Categorias'],['importar','upload','Importar em lote']];return `<aside class="admin-side"><h1>BACK<span>STAGE</span></h1><nav class="side-nav">${menu.map(([key,ic,label])=>`<button class="side-item ${state.adminTab===key?'active':''}" data-action="admin-tab" data-tab="${key}" title="${label}">${icon(ic)} ${label}</button>`).join('')}</nav><div class="side-note">BEAT//LINE<br>PAINEL DE CONTROLE<br>CATÁLOGO MUSICAL</div></aside>`;}
@@ -80,11 +93,12 @@ function emptyAdmin(message){return `<div class="empty-panel">${icon('album')}${
 function categoriesAdmin(){const editing=state.adminEditing&&state.adminEditing!=='new'?state.categories.find(c=>c.id===state.adminEditing):null;return `<div class="admin-titlebar"><div><h2>ESTAÇÕES MUSICAIS</h2><small>${state.categories.length} CATEGORIAS</small></div><button class="small-action" data-action="new-category" ${!state.connected?'disabled':''}>${icon('plus')} CRIAR</button></div>${state.activeForm?`<form class="admin-form pink" id="categoryForm"><div class="panel-title">${icon('tag')} ${editing?'EDITAR':'NOVA'} CATEGORIA</div><div class="form-grid"><label class="form-label">NOME<input class="form-input" name="name" required maxlength="40" value="${attr(editing?.name||'')}" placeholder="Ex.: ROCK 90"></label><label class="form-label">COR DE DESTAQUE<input class="form-input" type="color" name="color" value="${attr(editing?.color||'#c7f456')}"></label></div><div class="form-buttons"><button class="small-action" type="submit">${icon('check')} SALVAR</button><button class="small-action neutral" type="button" data-action="cancel-form">CANCELAR</button></div></form>`:''}${!state.connected?emptyAdmin('Não foi possível carregar as categorias. Tente novamente.'):(state.categories.length?`<div class="admin-list">${state.categories.map(c=>{let count=state.tracks.filter(t=>t.category_ids.includes(c.id)).length;return `<div class="admin-item"><div class="admin-item-left"><span class="admin-dot" style="background:${/^#[a-fA-F0-9]{6}$/.test(c.color)?c.color:'#c7f456'}">${icon('tag')}</span><div><div class="admin-item-name">${h(c.name)}</div><div class="admin-item-meta">${count} MÚSICAS</div></div></div><div class="admin-item-actions"><button class="mini-btn" data-action="show-cat-tracks" data-id="${attr(c.id)}" title="Ver músicas">${icon('list')}</button><button class="mini-btn" data-action="edit-category" data-id="${attr(c.id)}" title="Editar">${icon('edit')}</button><button class="mini-btn danger" data-action="delete-category" data-id="${attr(c.id)}" title="Excluir">${icon('trash')}</button></div></div>`}).join('')}</div>`:emptyAdmin('Ainda não existem categorias. Crie a primeira para começar.'))}`;}
 function renderAdmin(){return `<section class="screen admin-screen">${adminSidebar()}<main class="admin-main">${state.connectionError?`<div class="catalog-error">${icon('warning')} Não foi possível carregar o catálogo. <button data-action="retry-catalog">TENTAR NOVAMENTE</button></div>`:''}${state.adminTab==='categorias'?categoriesAdmin():state.adminTab==='importar'?renderBulkAdmin():songsAdmin()}</main></section>`;}
 function renderModal(){if(!state.modal)return '';let isExit=state.modal==='exit';return `<div class="modal-cover"><div class="modal-card"><h2>${isExit?'SAIR DA PARTIDA?':'CONFIRMAR EXCLUSÃO?'}</h2><p>${isExit?'O progresso desta partida será perdido.':'Essa ação não pode ser desfeita. Os vínculos com as categorias serão removidos.'}</p><div class="modal-actions"><button class="small-action neutral" data-action="cancel-modal">CANCELAR</button><button class="small-action" data-action="approve-modal">${icon(isExit?'home':'trash')} CONFIRMAR</button></div></div></div>`;}
-function render(){const previousScroll=state.page==='admin'?(root.querySelector('.admin-main')?.scrollTop||0):0;const timelineScroll=root.querySelector('.timeline-scroller')?.scrollLeft||0;const configScroll=root.querySelector('.config-panel')?.scrollTop||0;root.innerHTML=`<div class="shell">${navbar()}${state.page==='home'?renderHome():state.page==='config'?renderConfig():state.page==='game'?renderGame():state.page==='end'?renderEnd():renderAdmin()}<div class="footer-strip"></div>${renderModal()}${state.loading?`<div class="loading-overlay"><div><div class="spinner"></div>PROCESSANDO...</div></div>`:''}${state.toast?`<div class="toast">${h(state.toast)}</div>`:''}</div>`;const main=root.querySelector('.admin-main');if(main)main.scrollTop=previousScroll;const scroller=root.querySelector('.timeline-scroller');if(scroller)scroller.scrollLeft=timelineScroll;const panel=root.querySelector('.config-panel');if(panel)panel.scrollTop=configScroll;}
+function render(){const previousScroll=state.page==='admin'?(root.querySelector('.admin-main')?.scrollTop||0):0;const timelineScroll=root.querySelector('.timeline-scroller')?.scrollLeft ?? 0;const configScroll=root.querySelector('.config-panel')?.scrollTop||0;root.innerHTML=`<div class="shell">${navbar()}${state.page==='home'?renderHome():state.page==='config'?renderConfig():state.page==='game'?renderGame():state.page==='end'?renderEnd():renderAdmin()}<div class="footer-strip"></div>${renderModal()}${state.loading?`<div class="loading-overlay"><div><div class="spinner"></div>PROCESSANDO...</div></div>`:''}${state.toast?`<div class="toast">${h(state.toast)}</div>`:''}</div>`;const main=root.querySelector('.admin-main');if(main)main.scrollTop=previousScroll;const scroller=root.querySelector('.timeline-scroller');if(scroller){scroller.scrollLeft=timelineScroll;requestAnimationFrame(()=>{if(scroller.isConnected)scroller.scrollLeft=timelineScroll;});}const panel=root.querySelector('.config-panel');if(panel)panel.scrollTop=configScroll;}
 let toastTimer;
 function toast(message){state.toast=String(message);render();clearTimeout(toastTimer);toastTimer=setTimeout(()=>{state.toast='';render();},4200);}
 function navigate(page){if(state.page==='game'&&page!=='game'&&!state.reveal&&state.queue.length){state.modal='exit';render();return;}stopAudio();state.page=page;state.modal='';state.reveal=null;render();}
-function stopAudio(){audio.pause();audio.removeAttribute('src');audio.load();state.playing=false;state.playedSeconds=0;state.totalSeconds=0;}
+let audioRequestVersion=0;
+function stopAudio(){audioRequestVersion++;audio.pause();audio.removeAttribute('src');audio.load();state.playing=false;state.playedSeconds=0;state.totalSeconds=0;}
 function refreshPlayer(){
   if(state.page!=='game')return;
   const percent=state.totalSeconds>0?Math.min(100,state.playedSeconds/state.totalSeconds*100):0;
@@ -105,13 +119,18 @@ function seekAudio(value){
   state.playedSeconds=time;
   refreshPlayer();
 }
-function setAudioSrc(){if(!state.connected)return;const song=currentSong();if(!song)return;const base=state.connection.url.replace(/\/+$/,'');audio.src=`${base}/storage/v1/object/public/beatline-music/${song.file_path.split('/').map(encodeURIComponent).join('/')}`;audio.load();state.totalSeconds=0;state.playedSeconds=0;}
+function setAudioSrc(){if(!state.connected)return;const song=currentSong();if(!song)return;audioRequestVersion++;const base=state.connection.url.replace(/\/+$/,'');audio.src=`${base}/storage/v1/object/public/beatline-music/${song.file_path.split('/').map(encodeURIComponent).join('/')}`;audio.load();state.totalSeconds=0;state.playedSeconds=0;}
 async function togglePlay(){
   if(state.reveal)return;
   if(!audio.getAttribute('src'))setAudioSrc();
   if(state.playing){audio.pause();state.playing=false;refreshPlayer();return;}
+  const requestVersion=audioRequestVersion;
   try{const playing=audio.play();state.playing=true;refreshPlayer();await playing;}
-  catch(err){state.playing=false;refreshPlayer();if(state.page==='game')toast(`Não foi possível tocar o MP3: ${err.message}`);}
+  catch(err){
+    // Não reportar como falha do MP3 uma reprodução interrompida ao avançar a rodada.
+    if(requestVersion!==audioRequestVersion||err.name==='AbortError'||state.reveal||state.page!=='game')return;
+    state.playing=false;refreshPlayer();toast(`Não foi possível tocar o MP3: ${err.message}`);
+  }
 }
 function restartAudio(){
   if(!audio.getAttribute('src'))setAudioSrc();
@@ -123,9 +142,42 @@ audio.addEventListener('loadedmetadata',()=>{state.totalSeconds=Number.isFinite(
 audio.addEventListener('ended',()=>{state.playing=false;refreshPlayer();});
 audio.addEventListener('error',()=>{if(state.page==='game'&&audio.getAttribute('src'))toast('Falha ao carregar o arquivo MP3. Confira o Storage.');});
 function shuffle(a){let arr=[...a];for(let i=arr.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
-function startGame(){if(!state.connected){toast(state.connectionError?'Não foi possível carregar as músicas. Atualize a página.':'Carregando músicas. Aguarde um instante.');return;}const eligible=eligibleTracks(catalog(),cats(),state.config.categories,state.config.excludedCategories);if(eligible.length<state.config.count+1){toast(`São necessárias ${state.config.count+1} músicas na seleção (incluindo a música-base). Encontradas: ${eligible.length}.`);return;}stopAudio();const songs=shuffle(eligible).slice(0,state.config.count+1);state.refSong=songs[0];state.timeline=[songs[0]];state.queue=songs.slice(1);state.round=0;state.correct=0;state.wrong=[];state.livesRemaining=state.config.lives;state.selectedSlot=null;state.reveal=null;state.endAfterReveal=false;state.endReason='';state.page='game';render();setAudioSrc();togglePlay();}
-function confirmSlot(){if(state.selectedSlot===null||state.reveal)return;const index=state.selectedSlot,song=currentSong();const left=state.timeline[index-1],right=state.timeline[index];const okay=(!left||song.release_year>=left.release_year)&&(!right||song.release_year<=right.release_year);if(okay){state.timeline.splice(index,0,song);state.correct++;}else{state.wrong.push(song);state.livesRemaining=Math.max(0,state.livesRemaining-1);}state.endAfterReveal=(state.round===state.queue.length-1)||(!okay&&(state.config.lives===0||state.livesRemaining===0));if(state.endAfterReveal)state.endReason=(!okay&&(state.config.lives===0||state.livesRemaining===0))?'lives':'complete';state.reveal={correct:okay,song};audio.pause();state.playing=false;render();}
-function nextRound(){if(state.endAfterReveal){stopAudio();state.page='end';state.reveal=null;render();return;}stopAudio();state.round++;state.selectedSlot=null;state.reveal=null;render();setAudioSrc();togglePlay();}
+// Em modo infinito, nenhuma faixa se repete antes de todas as elegíveis serem usadas.
+// Ao acabar o catálogo, embaralhamos novamente e evitamos repetir imediatamente a última.
+function nextInfiniteSong(){
+  if(!state.remainingSongs.length){
+    state.remainingSongs=shuffle(state.sessionTracks);
+    const previous=state.queue.at(-1);
+    if(state.remainingSongs.length>1&&state.remainingSongs[0].id===previous?.id){
+      const other=state.remainingSongs.findIndex(track=>track.id!==previous.id);
+      if(other>0)[state.remainingSongs[0],state.remainingSongs[other]]=[state.remainingSongs[other],state.remainingSongs[0]];
+    }
+  }
+  return state.remainingSongs.shift();
+}
+function startGame(){
+  if(!state.connected){toast(state.connectionError?'Não foi possível carregar as músicas. Atualize a página.':'Carregando músicas. Aguarde um instante.');return;}
+  const eligible=eligibleTracks(catalog(),cats(),state.config.categories,state.config.excludedCategories);
+  const required=state.config.infiniteSongs?2:state.config.count+1;
+  if(eligible.length<required){toast(`São necessárias ${required} músicas na seleção (incluindo a música-base). Encontradas: ${eligible.length}.`);return;}
+  stopAudio();
+  const songs=shuffle(eligible);
+  state.refSong=songs[0];state.timeline=[songs[0]];
+  state.sessionTracks=state.config.infiniteSongs?[...eligible]:[];
+  state.queue=state.config.infiniteSongs?[songs[1]]:songs.slice(1,state.config.count+1);
+  state.remainingSongs=state.config.infiniteSongs?songs.slice(2):[];
+  state.round=0;state.correct=0;state.wrong=[];state.livesRemaining=state.config.lives;
+  state.selectedSlot=null;state.reveal=null;state.endAfterReveal=false;state.endReason='';state.page='game';
+  render();setAudioSrc();togglePlay();
+}
+function confirmSlot(){if(state.selectedSlot===null||state.reveal)return;const index=state.selectedSlot,song=currentSong();const left=state.timeline[index-1],right=state.timeline[index];const okay=(!left||song.release_year>=left.release_year)&&(!right||song.release_year<=right.release_year);if(okay){state.timeline.splice(index,0,song);state.correct++;}else{state.wrong.push(song);if(!state.config.infiniteLives)state.livesRemaining=Math.max(0,state.livesRemaining-1);}const outOfLives=!okay&&!state.config.infiniteLives&&(state.config.lives===0||state.livesRemaining===0);state.endAfterReveal=outOfLives||(!state.config.infiniteSongs&&state.round===state.queue.length-1);if(state.endAfterReveal)state.endReason=outOfLives?'lives':'complete';state.reveal={correct:okay,song};audio.pause();state.playing=false;render();}
+function nextRound(){
+  if(state.endAfterReveal){stopAudio();state.page='end';state.reveal=null;render();return;}
+  stopAudio();
+  if(state.config.infiniteSongs&&state.round+1>=state.queue.length)state.queue.push(nextInfiniteSong());
+  state.round++;state.selectedSlot=null;state.reveal=null;
+  render();setAudioSrc();togglePlay();
+}
 async function reloadCatalog(){state.loading=true;render();try{const {categories,tracks}=await loadCatalog(state.connection);state.categories=categories;state.tracks=tracks;state.connected=true;state.connectionError='';state.config.categories=state.config.categories.filter(id=>categories.some(c=>String(c.id)===id));state.config.excludedCategories=state.config.excludedCategories.filter(id=>categories.some(c=>String(c.id)===id));}catch(e){state.connected=false;state.connectionError=e.message||String(e);state.categories=[];state.tracks=[];throw e;}finally{state.loading=false;render();}}
 function setAdminTab(tab){state.page='admin';state.adminTab=tab;state.adminEditing=null;state.activeForm=false;render();}
 async function downloadMusicCSV(){
@@ -168,7 +220,9 @@ async function saveCategoryForm(form){const fd=new FormData(form);const editing=
 function handleAction(el){const act=el.dataset.action,id=el.dataset.id;if(act?.startsWith('bulk-')){handleBulkAction(el);return;}if(act==='nav-home'){if(state.page==='game'){state.modal='exit';render();}else if(document.body.dataset.startPage==='admin') window.location.href='index.html';else navigate('home');}
 else if(act==='nav-config'){if(document.body.dataset.startPage==='admin')window.location.href='index.html#config';else navigate('config');}
 else if(act==='dec-count'||act==='inc-count'){state.config.count=Math.max(1,Math.min(30,state.config.count+(act==='inc-count'?1:-1)));render();}
-else if(act==='dec-lives'||act==='inc-lives'){state.config.lives=Math.max(0,Math.min(6,state.config.lives+(act==='inc-lives'?1:-1)));render();}
+else if(act==='dec-lives'||act==='inc-lives'){if(!state.config.infiniteLives)state.config.lives=Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,state.config.lives+(act==='inc-lives'?1:-1)));render();}
+else if(act==='toggle-infinite-lives'){state.config.infiniteLives=!state.config.infiniteLives;render();}
+else if(act==='toggle-infinite-songs'){state.config.infiniteSongs=!state.config.infiniteSongs;render();}
 else if(act==='select-all'){state.config.categories=[];state.config.excludedCategories=[];render();}
 else if(act==='filter-mode'){state.config.filterMode=el.dataset.mode==='exclude'?'exclude':'include';render();}
 else if(act==='select-category'){
@@ -202,12 +256,24 @@ else if(act==='show-cat-tracks'){state.adminTab='musicas';state.adminFilter=id;s
 else if(act==='retry-catalog'){withLoading(()=>reloadCatalog());}}
 async function withLoading(fn){state.loading=true;render();try{await fn();}catch(err){toast(err.message||'Erro inesperado.');}finally{state.loading=false;render();}}
 root.addEventListener('click',e=>{const btn=e.target.closest('[data-action]');if(btn&&!btn.disabled)handleAction(btn);});
-root.addEventListener('change',e=>{if(e.target.id==='adminFilter'){state.adminFilter=e.target.value;render();}else if(e.target.id==='bulkFileInput'||e.target.id==='bulkFolderInput'){addBulkFiles(Array.from(e.target.files||[]));e.target.value='';}});
+root.addEventListener('change',e=>{if(e.target.id==='adminFilter'){state.adminFilter=e.target.value;render();}else if(e.target.id==='lifeCount'){const value=Number(e.target.value);if(e.target.value.trim()!==''&&Number.isSafeInteger(value)&&value>=0){state.config.lives=value;}else{toast('Informe um número inteiro de vidas igual ou maior que zero.');}render();}else if(e.target.id==='bulkFileInput'||e.target.id==='bulkFolderInput'){addBulkFiles(Array.from(e.target.files||[]));e.target.value='';}});
 root.addEventListener('input',e=>{if(e.target.id==='audioSeek')seekAudio(e.target.value);else if(e.target.matches('[data-bulk-field]'))editBulkField(e.target);});
 root.addEventListener('dragover',e=>{if(e.target.closest('.bulk-dropzone')){e.preventDefault();e.dataTransfer.dropEffect='copy';e.target.closest('.bulk-dropzone').classList.add('is-over');}});
 root.addEventListener('dragleave',e=>{if(e.target.closest('.bulk-dropzone')&&!e.relatedTarget?.closest?.('.bulk-dropzone'))e.target.closest('.bulk-dropzone').classList.remove('is-over');});
 root.addEventListener('drop',e=>{const zone=e.target.closest('.bulk-dropzone');if(zone){e.preventDefault();zone.classList.remove('is-over');addBulkFiles(Array.from(e.dataTransfer.files||[]));}});
 root.addEventListener('submit',e=>{e.preventDefault();const form=e.target;if(form.id==='trackForm')withLoading(()=>saveTrackForm(form));else if(form.id==='categoryForm')withLoading(()=>saveCategoryForm(form));});
+// A roda do mouse (deltaY) e o gesto vertical de dois dedos no touchpad
+// movem a linha do tempo na horizontal. Gestos horizontais já são nativos.
+root.addEventListener('wheel',e=>{
+  const scroller=e.target.closest('.timeline-scroller');
+  if(!scroller||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;
+  const maxScroll=Math.max(0,scroller.scrollWidth-scroller.clientWidth);
+  if(maxScroll===0)return;
+  const unit=e.deltaMode===1?16:e.deltaMode===2?scroller.clientWidth:1;
+  const amount=e.deltaY*unit;
+  const next=Math.max(0,Math.min(maxScroll,scroller.scrollLeft+amount));
+  if(next!==scroller.scrollLeft){e.preventDefault();scroller.scrollLeft=next;}
+},{passive:false});
 // Arraste por mouse, toque ou caneta. O cartão rosa já posicionado continua movível
 // até CONFIRMAR. Soltar sobre uma carta existente escolhe o lado mais próximo.
 let pointerDrag=null;
@@ -232,7 +298,7 @@ root.addEventListener('pointerdown',e=>{
   if(e.button!==0||state.page!=='game'||state.reveal)return;
   const el=e.target.closest('#grabSong, .slot.selected');
   if(!el)return;
-  pointerDrag={id:e.pointerId,startX:e.clientX,startY:e.clientY,ghost:null};
+  pointerDrag={id:e.pointerId,startX:e.clientX,startY:e.clientY,ghost:null,fromTimeline:el.classList.contains('selected'),scrollStart:root.querySelector('.timeline-scroller')?.scrollLeft ?? 0};
   el.setPointerCapture?.(e.pointerId);
 });
 root.addEventListener('pointermove',e=>{
@@ -247,7 +313,7 @@ root.addEventListener('pointermove',e=>{
   e.preventDefault();
   drag.ghost.style.left=`${e.clientX}px`;drag.ghost.style.top=`${e.clientY}px`;
   const scroller=root.querySelector('.timeline-scroller');
-  if(scroller){
+  if(scroller && !drag.fromTimeline){
     const rect=scroller.getBoundingClientRect();
     if(e.clientY>=rect.top&&e.clientY<=rect.bottom){
       if(e.clientX>rect.right-36)scroller.scrollLeft+=17;
@@ -258,11 +324,19 @@ root.addEventListener('pointermove',e=>{
 });
 function finishPointer(e){
   if(!pointerDrag||pointerDrag.id!==e.pointerId)return;
-  const dragged=Boolean(pointerDrag.ghost);
+  const drag=pointerDrag;
+  const dragged=Boolean(drag.ghost);
   const slot=e.type==='pointercancel'?null:targetSlot(e.clientX,e.clientY);
-  pointerDrag.ghost?.remove();pointerDrag=null;
+  drag.ghost?.remove();pointerDrag=null;
   highlightSlot(null);
-  if(dragged&&slot!==null){state.selectedSlot=slot;render();}
+  if(dragged&&slot!==null){
+    const scroller=root.querySelector('.timeline-scroller');
+    const keepScroll=drag.fromTimeline ? drag.scrollStart : scroller?.scrollLeft;
+    state.selectedSlot=slot;
+    render();
+    const updated=root.querySelector('.timeline-scroller');
+    if(updated && keepScroll!=null){updated.scrollLeft=keepScroll;requestAnimationFrame(()=>{if(updated.isConnected)updated.scrollLeft=keepScroll;});}
+  }
 }
 root.addEventListener('pointerup',finishPointer);
 root.addEventListener('pointercancel',finishPointer);

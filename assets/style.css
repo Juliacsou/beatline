@@ -168,3 +168,55 @@
 .slot.selected.dragover{border:3px solid #111;box-shadow:0 0 0 4px var(--lime),4px 4px #111}
 /* Sem o adesivo sobre o botao de iniciar, sobretudo em telas estreitas. */
 .config-panel::after{display:none!important}
+
+/* Evita que o navegador desloque a timeline ao trocar o card rosa. */
+.timeline-scroller,.timeline-row{overflow-anchor:none;}
+
+/* Configuracao de vidas sem teto fixo e opcao de vidas infinitas. */
+.life-input{min-width:0;width:5ch;max-width:48%;font-variant-numeric:tabular-nums;text-align:center;background:transparent;color:#111;border:0;border-bottom:2px solid #111;border-radius:0;padding:0 2px;outline-offset:4px;-moz-appearance:textfield}
+.life-input::-webkit-inner-spin-button,.life-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.life-input:disabled{opacity:.55}
+.infinite-toggle{margin-top:10px;border:2px solid #111;background:#fff9e8;color:#111;border-radius:8px;font:800 11px 'DM Mono',monospace;width:100%;min-height:35px;padding:6px;transition:background .12s}
+.infinite-toggle.active{background:var(--lime)}
+.infinite-toggle:focus-visible{outline:3px solid #8d36f7;outline-offset:3px}
+.life-row.numeric-lives,.life-row.infinite-lives{font:800 14px 'DM Mono',monospace;gap:7px;white-space:nowrap}
+.life-row.infinite-lives strong{font-size:23px;line-height:1}
+.life-row.numeric-lives strong{font-variant-numeric:tabular-nums}
+@media(max-width:700px){.life-row.numeric-lives,.life-row.infinite-lives{font-size:11px}.life-row.infinite-lives strong{font-size:20px}.life-input{font-size:25px}}
+
+/* V6: alinha as tres linhas de controle de MUSICAS e VIDAS.
+   O input de vidas tem altura intrinseca diferente do contador de musicas;
+   linhas de grade identicas impedem que os botoes fiquem desalinhados. */
+.config-counters > .counter-box{
+  display:grid;
+  grid-template-rows:minmax(16px,auto) 44px minmax(35px,auto);
+  row-gap:8px;
+  align-content:start;
+}
+.config-counters .counter-controls{
+  height:44px;
+  min-height:44px;
+  margin-top:0;
+}
+.config-counters .counter-number{
+  height:44px;
+  line-height:44px;
+}
+.config-counters .life-input{
+  line-height:normal;
+}
+.config-counters .infinite-toggle{
+  margin-top:0;
+  align-self:stretch;
+}
+@media(max-width:700px){
+  .config-counters > .counter-box{
+    grid-template-rows:minmax(14px,auto) 40px minmax(35px,auto);
+    row-gap:6px;
+  }
+  .config-counters .counter-controls,
+  .config-counters .counter-number{
+    height:40px;
+    min-height:40px;
+  }
+}
